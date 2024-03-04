@@ -6,15 +6,18 @@ import os
 import pickle
 import tensorflow as tf
 import pandas as pd
+import torch
 from sklearn.model_selection import train_test_split
 
 
 
 #data processing
-df =pd.read_csv("steam.csv", index_col=0)
+df =pd.read_csv("C:\\Users\ejder\Documents\ESILV\Cours\A4\S8\Decentralization technologies\TD3-1\data\steam.csv", index_col=0)
 
 # data processing
 df["positive_ratio"] = df["positive_ratings"] / (df["positive_ratings"] + df["negative_ratings"])
+df = df[(df['positive_ratings'] + df['negative_ratings']) >= 500]
+df = pd.get_dummies(df)
 
 def load_pkl_model(model_path):
     """
@@ -31,30 +34,40 @@ def load_h5_model(model_path):
     model = tf.keras.models.load_model(model_path)
     return model
 
+def load_pt_model(model_path):
+    model = torch.jit.load(model_path)
+    print(model)
+    return model
+
 def analyze_model(model, foo):
     X = df.drop(columns=["positive_ratio"], axis=1)
     y = df["positive_ratio"]
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-    if foo :
-        """the model is a pickle model"""
-        # Analyze the model
-        precision = model.score(X_test, y_test)
-    if not foo:
-        """the model is a h5 model"""
-        # Analyze the model
-        precision = model.evaluate(X_test, y_test)
+    try:
+        precision = torch.nn.MSELoss(torch.from_numpy(X_test).float().squeeze(1), torch.from_numpy(y_test).float())
+        return precision
+    except:
+        precision = 1
+    # if foo :
+    #     """the model is a pickle model"""
+    #     # Analyze the model
+    #     precision = model.score(X_test, y_test)
+    # if not foo:
+    #     """the model is a h5 model"""
+    #     # Analyze the model
+    #     precision = model.evaluate(X_test, y_test)
     # Decide if the weight should be updated or not
     return precision
     
 
 # Get the path to the folder containing the models
-folder_path = "/C:/Users/charl/Documents/GitHub/Workshop3_Dylan/Python_code/Python_Code"
+folder_path = "C:\\Users\ejder\Documents\ESILV\Cours\A4\S8\Decentralization technologies\TD3-1\Python_code"
 
 # List all the files in the folder
 files = os.listdir(folder_path)
 
 # Filter the files to only include .pkl and .h5 files
-model_files = [file for file in files if file.endswith((".pkl", ".h5"))]
+model_files = [file for file in files if file.endswith((".pkl", ".h5", ".pt"))]
 
 weight = []
 
@@ -70,6 +83,8 @@ for model_file in model_files:
     elif model_file.endswith(".h5"):
         model = load_h5_model(model_path)
         foo = False
+    elif model_file.endswith(".pt"):
+        model = load_pt_model(model_path)
     # Analyze the model and decide if the weight should be updated or not
     precision = analyze_model(model, foo)
     models.append({"model": model, "precision": precision})
